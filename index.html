@@ -1,61 +1,44 @@
 <!doctype html>
 <html lang="fr">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#3d3d3d">
-  <title>Transfert — Espace de partage</title>
-  <link rel="stylesheet" href="styles.css">
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#f7dce9"><title>Transfert — Espace de partage</title>
+<link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <main class="app-shell">
-    <section class="screen" data-screen="home">
-      <header class="greeting"><span>Bonjour</span><strong>Cyprien</strong></header>
-      <div class="topbar">
-        <button class="primary-button" data-go="send">Créer un nouveau partage</button>
-      </div>
-      <div class="share-grid" id="share-grid" aria-label="Partages récents">
-        <p class="empty-state">Vos partages apparaîtront ici une fois le service connecté.</p>
-      </div>
-    </section>
-
-    <section class="screen" data-screen="send" hidden>
-      <header class="greeting"><span>Nouveau</span><strong>partage</strong></header>
-      <div class="topbar"><button class="text-button" data-go="home">← Retour à l'accueil</button></div>
-      <div class="send-layout">
-        <form class="project-form" id="share-form">
-          <div class="field-row">
-            <label class="field"><span>Nom du client</span><input name="client" placeholder="Nom du client" required></label>
-            <label class="field"><span>Nom du projet</span><input name="project" placeholder="Nom du projet" required></label>
-          </div>
-          <label class="message-field"><span>Message (facultatif)</span><textarea name="message" placeholder="Votre message..."></textarea></label>
-          <button class="primary-button submit-button" type="submit">Prévisualiser le partage</button>
-        </form>
-        <section class="upload-panel">
-          <label class="drop-zone" id="drop-zone" for="file-input">
-            <input id="file-input" type="file" multiple hidden>
-            <span class="upload-symbol">＋</span><span>Glissez-déposez vos fichiers</span>
-            <small>ou cliquez pour les sélectionner</small>
-          </label>
-          <ul class="file-list" id="file-list"></ul>
-        </section>
-      </div>
-      <p class="notice">Prototype d'interface : les fichiers ne sont pas encore envoyés sur OneDrive.</p>
-    </section>
-
-    <section class="screen" data-screen="client" hidden>
-      <header class="greeting"><span>Bonjour</span><strong id="client-name">Client</strong></header>
-      <div class="project-banner"><h1 id="client-project">Nom du projet</h1></div>
-      <div class="client-intro">
-        <p id="client-message">Les fichiers de votre projet sont disponibles ci-dessous.</p>
-        <button class="primary-button" id="download-all" type="button" disabled>Tout télécharger</button>
-      </div>
-      <div class="client-files" id="client-files"></div>
-      <p class="notice" id="share-result" aria-live="polite"></p>
-      <p class="notice">Aperçu local uniquement : un lien client réel et les téléchargements seront activés avec le serveur.</p>
-    </section>
-  </main>
-  <script src="config.js"></script>
-  <script src="app.js"></script>
-</body>
-</html>
+<main class="app-shell">
+<section class="screen" data-screen="home">
+<header class="greeting"><span>Bonjour</span><strong>Cyprien</strong></header>
+<div class="topbar"><div><span class="eyebrow">VOTRE ESPACE</span><h1>Vos partages</h1></div><button class="primary-button" data-go="send">＋ Nouveau partage</button></div>
+<div class="dashboard-grid">
+<article class="storage-card"><div class="card-heading"><span>ESPACE DE TRANSFERT</span><span class="status-dot">● OneDrive</span></div><div class="storage-visual"><div class="storage-ring"><strong>∞</strong><small>vos fichiers</small></div><div><h2>Vos fichiers, au même endroit.</h2><p>Créez un espace de partage et transmettez vos fichiers simplement.</p></div></div><div class="segmented-bar"><i></i><i></i><i></i></div><div class="legend"><span>Images</span><span>Vidéos</span><span>Documents</span></div></article>
+<article class="quick-card"><span class="eyebrow">EN QUELQUES CLICS</span><div class="quick-icon">↗</div><h2>Un nouveau projet ?</h2><p>Préparez un dossier et partagez-le avec votre client.</p><button class="dark-button" data-go="send">Créer un partage <span>↗</span></button></article>
+</div>
+<div class="section-heading"><div><span class="eyebrow">VOTRE ACTIVITÉ</span><h2>Partages récents</h2></div><span class="muted" id="history-count">0 projet</span></div>
+<div class="share-grid" id="share-grid"><p class="empty-state">Vos projets créés apparaîtront ici.</p></div>
+</section>
+<section class="screen" data-screen="send" hidden>
+<header class="greeting"><span>Nouveau</span><strong>partage</strong></header>
+<div class="topbar"><button class="text-button" data-go="home">← Retour à l'accueil</button></div>
+<div class="send-layout">
+<form class="project-form" id="share-form">
+<div class="field-row"><label class="field"><span>Nom du client</span><input name="client" placeholder="Nom du client" required></label><label class="field"><span>Nom du projet</span><input name="project" placeholder="Nom du projet" required></label></div>
+<label class="message-field"><span>Votre message</span><textarea name="message" placeholder="Un petit mot pour votre client…"></textarea></label>
+<button class="primary-button submit-button" type="submit">Envoyer les fichiers</button>
+<p class="notice" id="connection-notice"></p>
+</form>
+<section class="upload-panel">
+<label class="drop-zone" id="drop-zone" for="file-input"><input id="file-input" type="file" multiple webkitdirectory directory hidden><span class="upload-symbol">＋</span><span>Glissez vos fichiers ou un dossier</span><small>Vous pouvez aussi cliquer pour parcourir vos fichiers</small></label>
+<ul class="file-list" id="file-list"></ul>
+</section></div>
+</section>
+<section class="screen" data-screen="client" hidden>
+<header class="greeting"><span>Votre galerie</span><strong id="client-name">Client</strong></header>
+<div class="project-banner"><h1 id="client-project">Nom du projet</h1></div>
+<div class="client-intro"><p id="client-message">Les images de votre projet sont disponibles ci-dessous.</p><button class="primary-button" id="download-all" type="button">Ouvrir le dossier complet</button></div>
+<div class="client-files" id="client-files"></div>
+<div class="share-actions" id="share-result"></div>
+</section>
+</main>
+<script src="config.js"></script><script src="app.js"></script>
+</body></html>

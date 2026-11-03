@@ -1,154 +1,18 @@
-const screens = [...document.querySelectorAll("[data-screen]")];
-function showScreen(name) {
-  screens.forEach(screen => { screen.hidden = screen.dataset.screen !== name; });
-  window.scrollTo({ top: 0, behavior: "instant" });
-}
-document.querySelectorAll("[data-go]").forEach(button => {
-  button.addEventListener("click", () => showScreen(button.dataset.go));
-});
-
-const API_BASE = (window.TRANSFERT_API_URL || "").replace(/\/$/, "");
-const fileInput = document.getElementById("file-input");
-const dropZone = document.getElementById("drop-zone");
-const fileList = document.getElementById("file-list");
-let selectedFiles = [];
-
-function addFiles(files) {
-  selectedFiles = [...selectedFiles, ...Array.from(files)];
-  renderFiles();
-}
-function renderFiles() {
-  fileList.replaceChildren();
-  selectedFiles.forEach((file, index) => {
-    const item = document.createElement("li");
-    const name = document.createElement("span");
-    name.textContent = `${file.name} (${formatSize(file.size)})`;
-    const remove = document.createElement("button");
-    remove.type = "button";
-    remove.textContent = "Retirer";
-    remove.addEventListener("click", () => {
-      selectedFiles.splice(index, 1);
-      renderFiles();
-    });
-    item.append(name, remove);
-    fileList.append(item);
-  });
-}
-function formatSize(bytes) {
-  if (bytes < 1024) return `${bytes} o`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} Ko`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} Mo`;
-}
-fileInput.addEventListener("change", event => addFiles(event.target.files));
-dropZone.addEventListener("dragover", event => {
-  event.preventDefault();
-  dropZone.classList.add("is-dragging");
-});
-dropZone.addEventListener("dragleave", () => dropZone.classList.remove("is-dragging"));
-dropZone.addEventListener("drop", event => {
-  event.preventDefault();
-  dropZone.classList.remove("is-dragging");
-  addFiles(event.dataTransfer.files);
-});
-
-async function checkConnection() {
-  if (!API_BASE || API_BASE.includes("VOTRE-SERVICE")) return;
-  try {
-    const response = await fetch(`${API_BASE}/api/status`, { credentials: "include" });
-    const data = await response.json();
-    if (!data.connected) {
-      const notice = document.querySelector('[data-screen="send"] .notice');
-      if (notice) {
-        notice.textContent = "Connectez votre OneDrive avant le premier envoi.";
-        const link = document.createElement("a");
-        link.href = `${API_BASE}/auth/login`;
-        link.textContent = " Connecter OneDrive";
-        link.style.color = "inherit";
-        notice.append(link);
-      }
-    }
-  } catch (_) {}
-}
-
-document.getElementById("share-form").addEventListener("submit", async event => {
-  event.preventDefault();
-  if (!selectedFiles.length) {
-    alert("Ajoutez au moins un fichier avant de créer le partage.");
-    return;
-  }
-  if (!API_BASE || API_BASE.includes("VOTRE-SERVICE")) {
-    alert("L'adresse du serveur Render n'est pas encore configurée.");
-    return;
-  }
-
-  const form = new FormData(event.currentTarget);
-  const button = event.currentTarget.querySelector('button[type="submit"]');
-  const originalText = button.textContent;
-  button.disabled = true;
-  button.textContent = "Envoi vers OneDrive…";
-  const result = document.getElementById("share-result");
-  result.textContent = "Envoi des fichiers en cours. Ne fermez pas cette page.";
-
-  try {
-    const payload = new FormData();
-    payload.append("client", form.get("client"));
-    payload.append("project", form.get("project"));
-    payload.append("message", form.get("message") || "");
-    selectedFiles.forEach(file => payload.append("files", file, file.name));
-
-    const response = await fetch(`${API_BASE}/api/upload`, {
-      method: "POST",
-      body: payload,
-      credentials: "include"
-    });
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.error || "L'envoi a échoué.");
-
-    document.getElementById("client-name").textContent = form.get("client");
-    document.getElementById("client-project").textContent = form.get("project");
-    document.getElementById("client-message").textContent =
-      form.get("message") || "Les fichiers de votre projet sont disponibles ci-dessous.";
-
-    const preview = document.getElementById("client-files");
-    preview.replaceChildren();
-    data.files.forEach(file => {
-      const card = document.createElement("article");
-      card.className = "client-file";
-      const label = document.createElement("strong");
-      label.textContent = file.name;
-      const link = document.createElement("a");
-      link.href = file.url;
-      link.target = "_blank";
-      link.rel = "noopener";
-      link.textContent = "Télécharger";
-      link.style.color = "inherit";
-      card.append(label, link);
-      preview.append(card);
-    });
-    result.replaceChildren();
-    const share = document.createElement("a");
-    share.href = data.shareUrl;
-    share.target = "_blank";
-    share.rel = "noopener";
-    share.textContent = "Ouvrir le dossier partagé";
-    share.style.color = "inherit";
-    result.append("Partage créé sur OneDrive : ", share, " — ");
-    const copy = document.createElement("button");
-    copy.type = "button";
-    copy.textContent = "Copier le lien";
-    copy.addEventListener("click", async () => {
-      await navigator.clipboard.writeText(data.shareUrl);
-      copy.textContent = "Lien copié !";
-    });
-    result.append(copy);
-    showScreen("client");
-  } catch (error) {
-    result.textContent = error.message;
-  } finally {
-    button.disabled = false;
-    button.textContent = originalText;
-  }
-});
-
-showScreen("home");
-checkConnection();
+const screens=[...document.querySelectorAll("[data-screen]")];
+function showScreen(name){screens.forEach(s=>s.hidden=s.dataset.screen!==name);window.scrollTo({top:0,behavior:"instant"});}
+document.querySelectorAll("[data-go]").forEach(b=>b.addEventListener("click",()=>showScreen(b.dataset.go)));
+const API=(window.TRANSFERT_API_URL||"").replace(/\/$/,"");
+const input=document.getElementById("file-input"),zone=document.getElementById("drop-zone"),list=document.getElementById("file-list");
+let selectedFiles=[];
+function addFiles(files){const incoming=[...files].filter(f=>!selectedFiles.some(x=>x.name===f.name&&x.size===f.size&&x.lastModified===f.lastModified));selectedFiles.push(...incoming);renderFiles();}
+function renderFiles(){list.replaceChildren();selectedFiles.forEach((f,i)=>{const li=document.createElement("li"),name=document.createElement("span"),remove=document.createElement("button");name.textContent=`${f.webkitRelativePath||f.name} · ${size(f.size)}`;remove.textContent="Retirer";remove.type="button";remove.onclick=()=>{selectedFiles.splice(i,1);renderFiles();};li.append(name,remove);list.append(li);});}
+function size(n){return n<1048576?`${(n/1024).toFixed(0)} Ko`:`${(n/1048576).toFixed(1)} Mo`;}
+input.addEventListener("change",e=>addFiles(e.target.files));
+zone.addEventListener("dragover",e=>{e.preventDefault();zone.classList.add("is-dragging");});
+zone.addEventListener("dragleave",()=>zone.classList.remove("is-dragging"));
+zone.addEventListener("drop",async e=>{e.preventDefault();zone.classList.remove("is-dragging");const items=[...e.dataTransfer.items];const found=[];async function walk(entry,path=""){if(entry.isFile){await new Promise(resolve=>entry.file(f=>{Object.defineProperty(f,"webkitRelativePath",{value:path+f.name});found.push(f);resolve();}));}else if(entry.isDirectory){const reader=entry.createReader();const children=await new Promise(resolve=>reader.readEntries(resolve));for(const child of children)await walk(child,path+entry.name+"/");}}for(const item of items){const entry=item.webkitGetAsEntry?.();if(entry)await walk(entry);}addFiles(found.length?found:e.dataTransfer.files);});
+async function connection(){try{const r=await fetch(`${API}/api/status`,{credentials:"include"});const d=await r.json();if(!d.connected){const a=document.createElement("a");a.href=`${API}/auth/login`;a.textContent="Connecter OneDrive";a.className="connect-link";document.getElementById("connection-notice").replaceChildren(a);}}catch{document.getElementById("connection-notice").textContent="Le serveur met quelques instants à démarrer. Réessayez dans un instant.";}}
+function history(){const items=JSON.parse(localStorage.getItem("transfert_history")||"[]");const grid=document.getElementById("share-grid");grid.replaceChildren();document.getElementById("history-count").textContent=`${items.length} projet${items.length>1?"s":""}`;if(!items.length){const p=document.createElement("p");p.className="empty-state";p.textContent="Vos projets créés apparaîtront ici.";grid.append(p);return;}items.forEach(item=>{const card=document.createElement("article");card.className="history-card";const title=document.createElement("strong"),meta=document.createElement("span"),link=document.createElement("a");title.textContent=item.project;meta.textContent=`${item.client} · ${item.date}`;link.href=item.shareUrl;link.target="_blank";link.textContent="Ouvrir le dossier OneDrive";link.rel="noopener";card.append(title,meta,link);grid.append(card);});}
+function showGallery(data){document.getElementById("client-name").textContent=data.client;document.getElementById("client-project").textContent=data.project;document.getElementById("client-message").textContent=data.message||"Retrouvez ici les fichiers de votre projet.";const area=document.getElementById("client-files");area.replaceChildren();data.files.forEach(f=>{const card=document.createElement("article");card.className="client-file";const isImage=/^image\//.test(f.mimeType||"")||/\.(jpe?g|png|gif|webp|heic)$/i.test(f.name);if(isImage&&f.previewUrl){const img=document.createElement("img");img.src=f.previewUrl;img.alt=f.name;card.append(img);}else{const icon=document.createElement("div");icon.className="file-icon";icon.textContent="▧";card.append(icon);}const name=document.createElement("strong");name.textContent=f.name;const a=document.createElement("a");a.href=f.downloadUrl||f.url;a.target="_blank";a.rel="noopener";a.textContent="Télécharger";card.append(name,a);area.append(card);});document.getElementById("download-all").onclick=()=>window.open(data.shareUrl,"_blank","noopener");showScreen("client");}
+document.getElementById("share-form").addEventListener("submit",async e=>{e.preventDefault();if(!selectedFiles.length){alert("Ajoutez au moins un fichier ou un dossier.");return;}const form=new FormData(e.currentTarget),button=e.currentTarget.querySelector('[type="submit"]'),old=button.textContent;button.disabled=true;button.textContent="Envoi en cours…";try{const body=new FormData();body.append("client",form.get("client"));body.append("project",form.get("project"));body.append("message",form.get("message")||"");selectedFiles.forEach(f=>body.append("files",f,f.webkitRelativePath||f.name));const r=await fetch(`${API}/api/upload`,{method:"POST",body,credentials:"include"});const data=await r.json();if(!r.ok)throw new Error(data.error||"L'envoi a échoué.");const item={client:form.get("client"),project:form.get("project"),date:new Date().toLocaleDateString("fr-FR"),shareUrl:data.shareUrl};const all=JSON.parse(localStorage.getItem("transfert_history")||"[]");all.unshift(item);localStorage.setItem("transfert_history",JSON.stringify(all.slice(0,50)));history();showGallery({...data,client:item.client,project:item.project,message:form.get("message")});selectedFiles=[];renderFiles();e.currentTarget.reset();}catch(err){alert(err.message);}finally{button.disabled=false;button.textContent=old;}});
+history();showScreen("home");connection();

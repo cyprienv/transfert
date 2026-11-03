@@ -4,192 +4,29 @@ import multer from "multer";
 import crypto from "node:crypto";
 import cookieParser from "cookie-parser";
 import "dotenv/config";
-
-const app = express();
-const PORT = process.env.PORT || 3000;
-const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN;
-const FRONTEND_URL = process.env.FRONTEND_URL;
-const CLIENT_ID = process.env.MICROSOFT_CLIENT_ID;
-const CLIENT_SECRET = process.env.MICROSOFT_CLIENT_SECRET;
-const REDIRECT_URI = process.env.MICROSOFT_REDIRECT_URI;
-const KEY = process.env.TOKEN_ENCRYPTION_KEY;
-
-if (!FRONTEND_ORIGIN || !FRONTEND_URL || !CLIENT_ID || !CLIENT_SECRET || !REDIRECT_URI || !KEY) {
-  console.warn("Configuration incomplète : renseignez les variables Render avant utilisation.");
-}
-if (KEY && Buffer.from(KEY, "hex").length !== 32) {
-  console.warn("TOKEN_ENCRYPTION_KEY doit être une clé hexadécimale de 32 octets (64 caractères).");
-}
-
-app.use(cors({ origin: FRONTEND_ORIGIN, credentials: true }));
-app.use(express.json());
-app.use(cookieParser());
-
-const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 100 * 1024 * 1024, files: 20 }
-});
-
-const cookieOptions = {
-  httpOnly: true, secure: true, sameSite: "none",
-  path: "/", maxAge: 30 * 24 * 60 * 60 * 1000
-};
-
-function encrypt(value) {
-  const iv = crypto.randomBytes(12);
-  const cipher = crypto.createCipheriv("aes-256-gcm", Buffer.from(KEY, "hex"), iv);
-  const encrypted = Buffer.concat([cipher.update(value, "utf8"), cipher.final()]);
-  return Buffer.concat([iv, cipher.getAuthTag(), encrypted]).toString("base64url");
-}
-function decrypt(value) {
-  const data = Buffer.from(value, "base64url");
-  const iv = data.subarray(0, 12);
-  const tag = data.subarray(12, 28);
-  const encrypted = data.subarray(28);
-  const decipher = crypto.createDecipheriv("aes-256-gcm", Buffer.from(KEY, "hex"), iv);
-  decipher.setAuthTag(tag);
-  return Buffer.concat([decipher.update(encrypted), decipher.final()]).toString("utf8");
-}
-function sign(value) {
-  return crypto.createHmac("sha256", KEY).update(value).digest("base64url");
-}
-function safeEqual(a, b) {
-  const aa = Buffer.from(a || "");
-  const bb = Buffer.from(b || "");
-  return aa.length === bb.length && crypto.timingSafeEqual(aa, bb);
-}
-async function tokenRequest(params) {
-  const response = await fetch("https://login.microsoftonline.com/consumers/oauth2/v2.0/token", {
-    method: "POST",
-    headers: { "content-type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams(params)
-  });
-  const data = await response.json();
-  if (!response.ok) throw new Error(data.error_description || data.error || "Erreur Microsoft OAuth");
-  return data;
-}
-async function getAccessToken(req, res) {
-  const raw = req.cookies.transfert_session;
-  if (!raw) return null;
-  try {
-    const refreshToken = decrypt(raw);
-    const tokens = await tokenRequest({
-      client_id: CLIENT_ID, client_secret: CLIENT_SECRET,
-      grant_type: "refresh_token", refresh_token: refreshToken,
-      scope: "offline_access User.Read Files.ReadWrite"
-    });
-    if (tokens.refresh_token) res.cookie("transfert_session", encrypt(tokens.refresh_token), cookieOptions);
-    return tokens.access_token;
-  } catch {
-    res.clearCookie("transfert_session", { ...cookieOptions, maxAge: undefined });
-    return null;
-  }
-}
-async function graph(accessToken, path, options = {}) {
-  const response = await fetch(`https://graph.microsoft.com/v1.0${path}`, {
-    ...options,
-    headers: { Authorization: `Bearer ${accessToken}`, ...(options.headers || {}) }
-  });
-  const body = await response.text();
-  let data = {};
-  try { data = body ? JSON.parse(body) : {}; } catch { data = { raw: body }; }
-  if (!response.ok) throw new Error(data.error?.message || `Microsoft Graph : ${response.status}`);
-  return data;
-}
-function safeFolderPart(value) {
-  return String(value || "").trim().replace(/[\\/:*?"<>|#%]/g, "-").replace(/\s+/g, "_").slice(0, 80) || "Sans_nom";
-}
-
-app.get("/health", (_req, res) => res.json({ ok: true }));
-app.get("/api/status", async (req, res) => {
-  const token = await getAccessToken(req, res);
-  res.json({ connected: Boolean(token) });
-});
-
-app.get("/auth/login", (_req, res) => {
-  const state = crypto.randomBytes(24).toString("hex");
-  res.cookie("transfert_oauth_state", `${state}.${sign(state)}`, {
-    httpOnly: true, secure: true, sameSite: "lax", path: "/", maxAge: 10 * 60 * 1000
-  });
-  const params = new URLSearchParams({
-    client_id: CLIENT_ID, response_type: "code", redirect_uri: REDIRECT_URI,
-    response_mode: "query", scope: "openid profile offline_access User.Read Files.ReadWrite",
-    state, prompt: "select_account"
-  });
-  res.redirect(`https://login.microsoftonline.com/consumers/oauth2/v2.0/authorize?${params}`);
-});
-
-app.get("/auth/callback", async (req, res) => {
-  try {
-    const [state, signature] = (req.cookies.transfert_oauth_state || ".").split(".");
-    if (!safeEqual(signature, sign(state)) || !safeEqual(req.query.state, state)) {
-      throw new Error("Vérification de sécurité OAuth échouée.");
-    }
-    res.clearCookie("transfert_oauth_state", { path: "/" });
-    if (req.query.error) throw new Error(String(req.query.error_description || req.query.error));
-    const tokens = await tokenRequest({
-      client_id: CLIENT_ID, client_secret: CLIENT_SECRET, grant_type: "authorization_code",
-      code: req.query.code, redirect_uri: REDIRECT_URI,
-      scope: "openid profile offline_access User.Read Files.ReadWrite"
-    });
-    res.cookie("transfert_session", encrypt(tokens.refresh_token), cookieOptions);
-    res.redirect(FRONTEND_URL);
-  } catch (error) {
-    res.status(400).send(`Connexion Microsoft impossible : ${String(error.message).replace(/[<>]/g, "")}`);
-  }
-});
-
-app.post("/api/upload", upload.array("files", 20), async (req, res) => {
-  try {
-    const accessToken = await getAccessToken(req, res);
-    if (!accessToken) return res.status(401).json({ error: "Connectez d'abord votre compte OneDrive." });
-    if (!req.files?.length) return res.status(400).json({ error: "Aucun fichier reçu." });
-
-    const folderName = `${safeFolderPart(req.body.client)}_${safeFolderPart(req.body.project)}`;
-    let folder;
-    try {
-      folder = await graph(accessToken, "/me/drive/root/children", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          name: folderName, folder: {}, "@microsoft.graph.conflictBehavior": "rename"
-        })
-      });
-    } catch (error) {
-      throw new Error(`Impossible de créer le dossier OneDrive : ${error.message}`);
-    }
-
-    const results = [];
-    for (const file of req.files) {
-      const safeName = file.originalname.replace(/[\\/]/g, "_");
-      const encoded = encodeURIComponent(safeName);
-      const uploaded = await graph(accessToken,
-        `/me/drive/items/${folder.id}:/${encoded}:/content`, {
-          method: "PUT",
-          headers: { "content-type": file.mimetype || "application/octet-stream" },
-          body: file.buffer
-        });
-      const link = await graph(accessToken, `/me/drive/items/${uploaded.id}/createLink`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ type: "view", scope: "anonymous" })
-      });
-      results.push({ name: file.originalname, url: link.link.webUrl });
-    }
-    const folderLink = await graph(accessToken, `/me/drive/items/${folder.id}/createLink`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ type: "view", scope: "anonymous" })
-    });
-    res.json({ folder: folderName, shareUrl: folderLink.link.webUrl, files: results });
-  } catch (error) {
-    res.status(500).json({ error: error.message || "Erreur pendant l'envoi." });
-  }
-});
-
-app.post("/auth/logout", (_req, res) => {
-  res.clearCookie("transfert_session", { ...cookieOptions, maxAge: undefined });
-  res.json({ ok: true });
-});
-
-app.listen(PORT, () => console.log(`Transfert API listening on ${PORT}`));
+const app=express(),PORT=process.env.PORT||3000;
+const {FRONTEND_ORIGIN,FRONTEND_URL,MICROSOFT_CLIENT_ID:CLIENT_ID,MICROSOFT_CLIENT_SECRET:CLIENT_SECRET,MICROSOFT_REDIRECT_URI:REDIRECT_URI,TOKEN_ENCRYPTION_KEY:KEY}=process.env;
+if(![FRONTEND_ORIGIN,FRONTEND_URL,CLIENT_ID,CLIENT_SECRET,REDIRECT_URI,KEY].every(Boolean))console.warn("Configuration Render incomplète.");
+if(KEY&&Buffer.from(KEY,"hex").length!==32)console.warn("TOKEN_ENCRYPTION_KEY doit contenir 64 caractères hexadécimaux.");
+app.use(cors({origin:FRONTEND_ORIGIN,credentials:true}));app.use(express.json());app.use(cookieParser());
+const upload=multer({storage:multer.memoryStorage(),limits:{fileSize:100*1024*1024,files:100}});
+const cookie={httpOnly:true,secure:true,sameSite:"none",path:"/",maxAge:30*86400000};
+function encrypt(v){const iv=crypto.randomBytes(12),c=crypto.createCipheriv("aes-256-gcm",Buffer.from(KEY,"hex"),iv),data=Buffer.concat([c.update(v,"utf8"),c.final()]);return Buffer.concat([iv,c.getAuthTag(),data]).toString("base64url");}
+function decrypt(v){const b=Buffer.from(v,"base64url"),d=crypto.createDecipheriv("aes-256-gcm",Buffer.from(KEY,"hex"),b.subarray(0,12));d.setAuthTag(b.subarray(12,28));return Buffer.concat([d.update(b.subarray(28)),d.final()]).toString("utf8");}
+function sign(v){return crypto.createHmac("sha256",KEY).update(v).digest("base64url");}
+function equal(a,b){const x=Buffer.from(a||""),y=Buffer.from(b||"");return x.length===y.length&&crypto.timingSafeEqual(x,y);}
+async function tokenRequest(params){const r=await fetch("https://login.microsoftonline.com/consumers/oauth2/v2.0/token",{method:"POST",headers:{"content-type":"application/x-www-form-urlencoded"},body:new URLSearchParams(params)});const d=await r.json();if(!r.ok)throw Error(d.error_description||d.error||"Erreur Microsoft");return d;}
+async function access(req,res){if(!req.cookies.transfert_session)return null;try{const t=await tokenRequest({client_id:CLIENT_ID,client_secret:CLIENT_SECRET,grant_type:"refresh_token",refresh_token:decrypt(req.cookies.transfert_session),scope:"offline_access User.Read Files.ReadWrite"});if(t.refresh_token)res.cookie("transfert_session",encrypt(t.refresh_token),cookie);return t.access_token;}catch{res.clearCookie("transfert_session",{...cookie,maxAge:undefined});return null;}}
+async function graph(token,path,opts={}){const r=await fetch("https://graph.microsoft.com/v1.0"+path,{...opts,headers:{Authorization:`Bearer ${token}`,...(opts.headers||{})}});const raw=await r.text();let d={};try{d=raw?JSON.parse(raw):{};}catch{d={};}if(!r.ok)throw Error(d.error?.message||`Microsoft Graph ${r.status}`);return d;}
+const clean=s=>String(s||"").trim().replace(/[\\/:*?"<>|#%]/g,"-").replace(/\s+/g,"_").slice(0,80)||"Sans_nom";
+app.get("/health",(_q,s)=>s.json({ok:true}));
+app.get("/api/status",async(q,s)=>s.json({connected:Boolean(await access(q,s))}));
+app.get("/auth/login",(_q,s)=>{const state=crypto.randomBytes(24).toString("hex");s.cookie("oauth_state",`${state}.${sign(state)}`,{httpOnly:true,secure:true,sameSite:"lax",path:"/",maxAge:600000});const p=new URLSearchParams({client_id:CLIENT_ID,response_type:"code",redirect_uri:REDIRECT_URI,response_mode:"query",scope:"openid profile offline_access User.Read Files.ReadWrite",state,prompt:"select_account"});s.redirect(`https://login.microsoftonline.com/consumers/oauth2/v2.0/authorize?${p}`);});
+app.get("/auth/callback",async(q,s)=>{try{const [state,sig]=(q.cookies.oauth_state||".").split(".");if(!equal(sig,sign(state))||!equal(q.query.state,state))throw Error("Vérification de sécurité échouée.");s.clearCookie("oauth_state",{path:"/"});if(q.query.error)throw Error(String(q.query.error_description||q.query.error));const t=await tokenRequest({client_id:CLIENT_ID,client_secret:CLIENT_SECRET,grant_type:"authorization_code",code:q.query.code,redirect_uri:REDIRECT_URI,scope:"openid profile offline_access User.Read Files.ReadWrite"});s.cookie("transfert_session",encrypt(t.refresh_token),cookie);s.redirect(FRONTEND_URL);}catch(e){s.status(400).send(`Connexion Microsoft impossible : ${String(e.message).replace(/[<>]/g,"")}`);}});
+app.post("/api/upload",upload.array("files",100),async(q,s)=>{try{const token=await access(q,s);if(!token)return s.status(401).json({error:"Connectez d'abord votre compte OneDrive."});if(!q.files?.length)return s.status(400).json({error:"Aucun fichier reçu."});
+const base=await graph(token,"/me/drive/root:/transfert_site");const folder=await graph(token,`/me/drive/items/${base.id}/children`,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({name:`${clean(q.body.client)}_${clean(q.body.project)}`,folder:{},"@microsoft.graph.conflictBehavior":"rename"})});
+const results=[];for(const f of q.files){const name=f.originalname.split(/[\\/]/).pop();const uploaded=await graph(token,`/me/drive/items/${folder.id}:/${encodeURIComponent(name)}:/content`,{method:"PUT",headers:{"content-type":f.mimetype||"application/octet-stream"},body:f.buffer});const [download,preview,share]=await Promise.all([graph(token,`/me/drive/items/${uploaded.id}/createLink`,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({type:"view",scope:"anonymous"})}),Promise.resolve(uploaded["@microsoft.graph.downloadUrl"]||null),graph(token,`/me/drive/items/${uploaded.id}/createLink`,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({type:"view",scope:"anonymous"})})]);results.push({name,mimeType:f.mimetype,url:share.link.webUrl,downloadUrl:share.link.webUrl,previewUrl:/^image\\//.test(f.mimetype||"")?preview:null});}
+const folderShare=await graph(token,`/me/drive/items/${folder.id}/createLink`,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({type:"view",scope:"anonymous"})});s.json({folder:folder.name,shareUrl:folderShare.link.webUrl,client:q.body.client,project:q.body.project,message:q.body.message,files:results});
+}catch(e){s.status(500).json({error:e.message||"Erreur pendant l'envoi."});}});
+app.post("/auth/logout",(_q,s)=>{s.clearCookie("transfert_session",{...cookie,maxAge:undefined});s.json({ok:true});});
+app.listen(PORT,()=>console.log(`Transfert API listening on ${PORT}`));
