@@ -7,6 +7,7 @@ document.querySelectorAll("[data-go]").forEach(button => {
   button.addEventListener("click", () => showScreen(button.dataset.go));
 });
 
+const API_BASE = (window.TRANSFERT_API_URL || "").replace(/\/$/, "");
 const fileInput = document.getElementById("file-input");
 const dropZone = document.getElementById("drop-zone");
 const fileList = document.getElementById("file-list");
@@ -50,28 +51,104 @@ dropZone.addEventListener("drop", event => {
   addFiles(event.dataTransfer.files);
 });
 
-document.getElementById("share-form").addEventListener("submit", event => {
+async function checkConnection() {
+  if (!API_BASE || API_BASE.includes("VOTRE-SERVICE")) return;
+  try {
+    const response = await fetch(`${API_BASE}/api/status`, { credentials: "include" });
+    const data = await response.json();
+    if (!data.connected) {
+      const notice = document.querySelector('[data-screen="send"] .notice');
+      if (notice) {
+        notice.textContent = "Connectez votre OneDrive avant le premier envoi.";
+        const link = document.createElement("a");
+        link.href = `${API_BASE}/auth/login`;
+        link.textContent = " Connecter OneDrive";
+        link.style.color = "inherit";
+        notice.append(link);
+      }
+    }
+  } catch (_) {}
+}
+
+document.getElementById("share-form").addEventListener("submit", async event => {
   event.preventDefault();
+  if (!selectedFiles.length) {
+    alert("Ajoutez au moins un fichier avant de créer le partage.");
+    return;
+  }
+  if (!API_BASE || API_BASE.includes("VOTRE-SERVICE")) {
+    alert("L'adresse du serveur Render n'est pas encore configurée.");
+    return;
+  }
+
   const form = new FormData(event.currentTarget);
-  document.getElementById("client-name").textContent = form.get("client");
-  document.getElementById("client-project").textContent = form.get("project");
-  document.getElementById("client-message").textContent =
-    form.get("message") || "Les fichiers de votre projet sont disponibles ci-dessous.";
-  const preview = document.getElementById("client-files");
-  preview.replaceChildren();
-  selectedFiles.forEach(file => {
-    const card = document.createElement("article");
-    card.className = "client-file";
-    const label = document.createElement("strong");
-    label.textContent = file.name;
-    const size = document.createElement("span");
-    size.textContent = formatSize(file.size);
-    card.append(label, size);
-    preview.append(card);
-  });
-  showScreen("client");
+  const button = event.currentTarget.querySelector('button[type="submit"]');
+  const originalText = button.textContent;
+  button.disabled = true;
+  button.textContent = "Envoi vers OneDrive…";
+  const result = document.getElementById("share-result");
+  result.textContent = "Envoi des fichiers en cours. Ne fermez pas cette page.";
+
+  try {
+    const payload = new FormData();
+    payload.append("client", form.get("client"));
+    payload.append("project", form.get("project"));
+    payload.append("message", form.get("message") || "");
+    selectedFiles.forEach(file => payload.append("files", file, file.name));
+
+    const response = await fetch(`${API_BASE}/api/upload`, {
+      method: "POST",
+      body: payload,
+      credentials: "include"
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "L'envoi a échoué.");
+
+    document.getElementById("client-name").textContent = form.get("client");
+    document.getElementById("client-project").textContent = form.get("project");
+    document.getElementById("client-message").textContent =
+      form.get("message") || "Les fichiers de votre projet sont disponibles ci-dessous.";
+
+    const preview = document.getElementById("client-files");
+    preview.replaceChildren();
+    data.files.forEach(file => {
+      const card = document.createElement("article");
+      card.className = "client-file";
+      const label = document.createElement("strong");
+      label.textContent = file.name;
+      const link = document.createElement("a");
+      link.href = file.url;
+      link.target = "_blank";
+      link.rel = "noopener";
+      link.textContent = "Télécharger";
+      link.style.color = "inherit";
+      card.append(label, link);
+      preview.append(card);
+    });
+    result.replaceChildren();
+    const share = document.createElement("a");
+    share.href = data.shareUrl;
+    share.target = "_blank";
+    share.rel = "noopener";
+    share.textContent = "Ouvrir le dossier partagé";
+    share.style.color = "inherit";
+    result.append("Partage créé sur OneDrive : ", share, " — ");
+    const copy = document.createElement("button");
+    copy.type = "button";
+    copy.textContent = "Copier le lien";
+    copy.addEventListener("click", async () => {
+      await navigator.clipboard.writeText(data.shareUrl);
+      copy.textContent = "Lien copié !";
+    });
+    result.append(copy);
+    showScreen("client");
+  } catch (error) {
+    result.textContent = error.message;
+  } finally {
+    button.disabled = false;
+    button.textContent = originalText;
+  }
 });
 
 showScreen("home");
-// Cette version est un prototype front-end. Aucun fichier n'est envoyé à OneDrive
-// et aucun lien public n'est créé tant que le backend sécurisé n'est pas configuré.
+checkConnection();
