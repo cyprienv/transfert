@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#3d3d3d">
+  <title>Transfert — Espace de partage</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main class="app-shell">
+    <section class="screen" data-screen="home">
+      <header class="greeting"><span>Bonjour</span><strong>Cyprien</strong></header>
+      <div class="topbar">
+        <button class="primary-button" data-go="send">Créer un nouveau partage</button>
+      </div>
+      <div class="share-grid" id="share-grid" aria-label="Partages récents">
+        <p class="empty-state">Vos partages apparaîtront ici une fois le service connecté.</p>
+      </div>
+    </section>
+
+    <section class="screen" data-screen="send" hidden>
+      <header class="greeting"><span>Nouveau</span><strong>partage</strong></header>
+      <div class="topbar"><button class="text-button" data-go="home">← Retour à l'accueil</button></div>
+      <div class="send-layout">
+        <form class="project-form" id="share-form">
+          <div class="field-row">
+            <label class="field"><span>Nom du client</span><input name="client" placeholder="Nom du client" required></label>
+            <label class="field"><span>Nom du projet</span><input name="project" placeholder="Nom du projet" required></label>
+          </div>
+          <label class="message-field"><span>Message (facultatif)</span><textarea name="message" placeholder="Votre message..."></textarea></label>
+          <button class="primary-button submit-button" type="submit">Prévisualiser le partage</button>
+        </form>
+        <section class="upload-panel">
+          <label class="drop-zone" id="drop-zone" for="file-input">
+            <input id="file-input" type="file" multiple hidden>
+            <span class="upload-symbol">＋</span><span>Glissez-déposez vos fichiers</span>
+            <small>ou cliquez pour les sélectionner</small>
+          </label>
+          <ul class="file-list" id="file-list"></ul>
+        </section>
+      </div>
+      <p class="notice">Prototype d'interface : les fichiers ne sont pas encore envoyés sur OneDrive.</p>
+    </section>
+
+    <section class="screen" data-screen="client" hidden>
+      <header class="greeting"><span>Bonjour</span><strong id="client-name">Client</strong></header>
+      <div class="project-banner"><h1 id="client-project">Nom du projet</h1></div>
+      <div class="client-intro">
+        <p id="client-message">Les fichiers de votre projet sont disponibles ci-dessous.</p>
+        <button class="primary-button" id="download-all" type="button" disabled>Tout télécharger</button>
+      </div>
+      <div class="client-files" id="client-files"></div>
+      <p class="notice">Aperçu local uniquement : un lien client réel et les téléchargements seront activés avec le serveur.</p>
+    </section>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>

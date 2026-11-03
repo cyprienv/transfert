@@ -1,0 +1,56 @@
+*{box-sizing:border-box}
+:root{font-family:Arial,Helvetica,sans-serif;color:#fff;background:#3d3d3d;font-synthesis:none}
+body{margin:0;min-width:320px;background:#3d3d3d}
+button,input,textarea{font:inherit}
+button{cursor:pointer}
+.app-shell{width:min(1128px,calc(100% - 48px));margin:0 auto;padding:56px 0 64px}
+.screen[hidden]{display:none}
+.greeting{display:flex;gap:20px;align-items:baseline;font-size:40px;line-height:1.1;margin:0 0 56px}
+.greeting strong{font-weight:700;color:#d72525}
+.topbar{min-height:65px;border:1px solid rgba(255,255,255,.12);border-radius:15px;display:flex;align-items:center;justify-content:flex-end;padding:10px 17px;margin-bottom:72px}
+.primary-button{min-height:43px;padding:0 17px;border:0;border-radius:15px;background:#d72525;color:#fff;font-size:18px;white-space:nowrap;transition:background .15s,color .15s}
+.primary-button:hover{background:#fff;color:#d72525}
+.primary-button:disabled{opacity:.45;cursor:not-allowed}
+.text-button{border:0;background:transparent;color:#fff;font-size:16px}
+.share-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:23px 24px}
+.empty-state{grid-column:1/-1;color:#d4d4d4;font-size:16px}
+.send-layout{display:grid;grid-template-columns:minmax(0,656px) minmax(260px,360px);justify-content:space-between;gap:40px}
+.project-form{display:flex;flex-direction:column;gap:38px}
+.field-row{display:grid;grid-template-columns:1fr 1fr;gap:28px}
+.field,.message-field{display:flex;flex-direction:column;gap:10px}
+.field span,.message-field span{font-size:17px}
+.field input,.message-field textarea{width:100%;border:0;border-radius:12px;background:#d9d9d9;color:#3d3d3d;padding:12px 17px;font-size:16px;outline-offset:3px}
+.field input{height:46px}
+.message-field textarea{height:140px;resize:vertical;padding:18px}
+.submit-button{align-self:flex-start}
+.upload-panel{display:flex;flex-direction:column;gap:20px}
+.drop-zone{min-height:300px;background:#d9d9d9;color:#3d3d3d;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;cursor:pointer;text-align:center;padding:24px;transition:outline .15s}
+.drop-zone.is-dragging{outline:3px dashed #d72525;outline-offset:-12px}
+.upload-symbol{font-size:44px;line-height:1}
+.drop-zone small{font-size:14px}
+.file-list{padding:0;margin:0;list-style:none;display:flex;flex-direction:column;gap:10px}
+.file-list li{min-height:42px;background:#d9d9d9;color:#3d3d3d;padding:8px 12px;display:flex;align-items:center;justify-content:space-between;gap:12px;overflow-wrap:anywhere}
+.file-list button{flex:none;border:0;background:none;color:#3d3d3d;text-decoration:underline}
+.project-banner{min-height:250px;border-radius:15px;background:#d9d9d9;color:#3d3d3d;display:grid;place-items:center}
+.project-banner h1{font-size:40px;font-weight:400;text-align:center}
+.client-intro{display:flex;justify-content:space-between;align-items:center;gap:32px;margin:42px 0}
+.client-intro p{max-width:672px;font-size:18px;line-height:1.5}
+.client-files{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:24px}
+.client-file{min-height:250px;background:#d9d9d9;color:#3d3d3d;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding:24px;overflow-wrap:anywhere}
+.notice{margin-top:32px;color:#c7c7c7;font-size:13px;line-height:1.5}
+@media(max-width:700px){
+ .app-shell{width:calc(100% - 40px);padding:38px 0 44px}
+ .greeting{font-size:32px;flex-direction:column;gap:6px;margin-bottom:28px}
+ .topbar{border:0;padding:0;justify-content:flex-start;margin-bottom:38px}
+ .primary-button{font-size:16px}
+ .send-layout{grid-template-columns:1fr;gap:30px}
+ .field-row{grid-template-columns:1fr;gap:22px}
+ .project-form{gap:26px}
+ .drop-zone{min-height:240px}
+ .project-banner{min-height:220px}
+ .project-banner h1{font-size:30px;padding:16px}
+ .client-intro{flex-direction:column;align-items:stretch;margin:28px 0;gap:16px}
+ .client-intro p{font-size:16px;margin:0}
+ .client-intro .primary-button{align-self:flex-start}
+ .client-files{grid-template-columns:1fr;gap:14px}
+}
